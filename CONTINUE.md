@@ -15,9 +15,9 @@ WiFi-/BT-Geräte, IMSI-Catcher und Silent-SMS während man sich bewegt.
 ## Aktueller Stand (16.05.2026)
 
 - Repo: `github.com/tschakram/argus-pager-2.0`
-- **HEAD `ff3b386`** (origin/main) - Task 2 + OPSEC-Cleanup gepushed
+- **HEAD pending push** (origin/main) - Task 3 DHCP-Fingerprint + cyt ec141b1
 - Lokaler Pager-Workdir entspricht origin/main
-- cyt-Submodule HEAD `0630cd6` (main, gepushed - mac_ignore + Loader + OPSEC-Cleanup)
+- cyt-Submodule HEAD `ec141b1` (main, gepushed - + DHCP fingerprint parser)
 - raypager-Submodule HEAD `fa3114b` (master, gepushed)
 
 ## NAECHSTE ARBEIT (Start-Reihenfolge)
@@ -74,26 +74,44 @@ schrittweise durch Patterns ersetzt werden. Beispiel:
 
 Live-Test gegen Samsung-TV-Rotation steht aus (naechster Argus-Run).
 
-### Task 3: DHCP-Fingerprint-Extraktion
+### Task 3: DHCP-Fingerprint-Extraktion - DONE (16.05.)
 
-Hotel-Test-relevant. Aktuell: bei assoziierten WiFi-Captures
-sehen wir nur Probe-Requests (keine SSID-Names bei Wi-Fi 6E).
-DHCP-Discover-Pakete enthalten Option 55 "Parameter Request List"
-- ein Geraete-Fingerprint der via Fingerbank-API in
-Hersteller+Modell aufgeloest werden kann.
+Implementiert in cyt ec141b1 + argus (siehe HEAD).
 
-Implementation:
-- `cyt/python/pcap_engine.py` neue `read_pcap_dhcp(pcap)` Funktion
-  parst Option 55 + 60 + 12 (hostname) aus DHCPDISCOVER/REQUEST
-- Output: `{mac: {opt55, opt60, hostname, ...}}`
-- `core/external_intel.py` queryt Fingerbank mit opt55-hash
-- Report-Block "DHCP Fingerprints": MAC | hostname | inferred device
+Was kam:
+- `cyt/python/pcap_engine.py`:
+  - `read_pcap_data_ips(pcap) -> (ips, dhcp)` - Legacy-API fertig
+    (war als try-Stub-Import in analyze_pcap/hotel_scan seit Wochen)
+  - `read_pcap_dhcp(pcap) -> {mac: {fingerprint, vendor, hostname,
+    msg_type, first_seen, last_seen, count}}` - Detail-API fuer
+    Argus' analyser-Block
+  - Linktype-Support: ETHERNET, 802.11, Radiotap
+  - Verschluesselte 802.11 Data-Frames werden uebersprungen
+  - DHCP-Options 53, 55, 60, 12
+  - Self-Test via build_synthetic_dhcp_pcap (__main__) gruen
+- `python/core/external_intel.py`:
+  - `_collect_dhcp_fingerprints(pcaps)` - aggregiert ueber alle pcaps
+    + Auto-Glob fuer `manual_*_dhcp.pcap` (Hotel-Helper-Pcaps)
+  - `_lookup_dhcp(dhcp_map, fb_key)` - Fingerbank-Query mit opt55
+    (hoehere Hit-Rate als MAC-only Fingerbank-Lookup)
+  - Neue Findings: "DHCP: N device(s) identified" plus threat-bump
+    bei camera/IoT/embedded
+  - Neuer Report-Block "### DHCP Fingerprints":
+    MAC, Hostname, Vendor, Device, Category, Score
+- `tools/hotel_dhcp_capture.sh` (NEU): manueller DHCP-Capture
+  fuer Hotel-Test. User assoziiert manuell mit Hotel-WiFi, startet
+  `./hotel_dhcp_capture.sh <iface> <dur>`, naechste Argus-Session
+  zieht die manual_*_dhcp.pcap automatisch ein.
 
-Acceptance:
-- Im Hotel-Test (assoziiert mit Hotel-AP) wird mind. 1 DHCP-Frame
-  capturet und an Fingerbank geschickt
-- Devices wie "Apple iPhone", "Samsung TV", "Sonos Speaker" werden
-  korrekt aufgeloest
+Hit-Rate-Note: Fingerbank's primaerer Index ist op55, nicht MAC.
+DHCP-Path sollte deutlich mehr Devices identifizieren als der
+MAC-only Pfad (der oft score<30 zurueckliefert und discarded wird).
+
+Hotel-Test offen: User assoziiert mit Hotel-AP, startet Helper-
+Skript, dann normalen Argus-Run. Erwartung: Hostnames + identifizierte
+Devices im Report-Block.
+
+E2E-Test (synthetic DHCPDISCOVER): roundtrip + manual-pcap glob OK.
 
 ---
 

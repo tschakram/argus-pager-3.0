@@ -142,6 +142,86 @@ _MAX_IP_LOOKUPS  = 50
 _MAX_MAC_LOOKUPS = 50
 
 
+def _collect_dhcp_fingerprints(pcaps: list[Path]) -> dict[str, dict]:
+    """Aggregate DHCP fingerprints across all pcaps in the session,
+    PLUS any manual_*_dhcp.pcap dropped into the same pcap-dir by
+    tools/hotel_dhcp_capture.sh (hotel/cafe manual workflow).
+
+    Returns {mac.lower(): {fingerprint, vendor, hostname, msg_type,
+                           first_seen, last_seen, count}}.
+    """
+    try:
+        from pcap_engine import read_pcap_dhcp  # type: ignore
+    except Exception as e:
+        print(f"[external_intel] pcap_engine.read_pcap_dhcp unavailable: {e}",
+              file=sys.stderr, flush=True)
+        return {}
+    # Pull in manual_*_dhcp.pcap that scan_engine never tracked.
+    extra: set[Path] = set()
+    for p in pcaps:
+        d = p.parent
+        try:
+            for m in d.glob("manual_*_dhcp.pcap"):
+                extra.add(m)
+        except Exception:
+            pass
+    all_pcaps = list(pcaps) + sorted(extra - set(pcaps))
+    out: dict[str, dict] = {}
+    for p in all_pcaps:
+        try:
+            for mac, d in read_pcap_dhcp(str(p)).items():
+                prev = out.get(mac)
+                if prev is None:
+                    out[mac] = dict(d)
+                else:
+                    prev["count"] += d.get("count", 1)
+                    if d.get("last_seen", "") > prev.get("last_seen", ""):
+                        prev["last_seen"] = d["last_seen"]
+                    for k in ("fingerprint", "vendor", "hostname"):
+                        if not prev.get(k) and d.get(k):
+                            prev[k] = d[k]
+        except Exception as e:
+            print(f"[external_intel] DHCP-parse failed for {p}: {e}",
+                  file=sys.stderr, flush=True)
+    return out
+
+
+def _lookup_dhcp(dhcp_map: dict[str, dict], fb_key: str) -> list[dict]:
+    """Query Fingerbank with dhcp_fingerprint+mac per device.
+
+    Higher hit-rate than MAC-only since Fingerbank's primary index is on
+    DHCP option 55. Returns list[{mac, hostname, vendor, fingerprint,
+    device_name, category, score, risk}].
+    """
+    if not (fb_key and dhcp_map):
+        return []
+    results: list[dict] = []
+    for mac, d in sorted(dhcp_map.items()):
+        fp = d.get("fingerprint")
+        if not fp:
+            continue
+        try:
+            r = sl.fingerbank_lookup(mac, fb_key,
+                                     dhcp_fingerprint=fp, timeout=5)
+        except Exception:
+            r = None
+        row = {
+            "mac":         mac,
+            "hostname":    d.get("hostname") or "-",
+            "vendor":      d.get("vendor") or "-",
+            "fingerprint": fp,
+        }
+        if r:
+            row.update({
+                "device_name": r.get("device_name", "?"),
+                "category":    r.get("category", "?"),
+                "score":       r.get("score", 0),
+                "risk":        r.get("risk", "none"),
+            })
+        results.append(row)
+    return results
+
+
 def _lookup_ips(ips: list[str], shodan_key: str | None) -> list[dict]:
     out: list[dict] = []
     for ip in ips[:_MAX_IP_LOOKUPS]:
@@ -197,6 +277,9 @@ def run(*, config: dict,
     ip_results: list[dict] = _lookup_ips(ips, shodan_key) if ips else []
     mac_results: list[dict] = (_lookup_macs(macs_to_query, fb_key)
                                if (fb_key and macs_to_query) else [])
+    dhcp_map = _collect_dhcp_fingerprints(pcaps) if fb_key else {}
+    dhcp_results: list[dict] = (_lookup_dhcp(dhcp_map, fb_key)
+                                if dhcp_map else [])
 
     findings: list[str] = []
     bump: str | None = None
@@ -224,15 +307,34 @@ def run(*, config: dict,
         findings.append(f"Fingerbank: {len(med)} IoT/embedded device(s)")
         bump = bump or "medium"
 
+    # DHCP fingerprints: separate finding because hit-rate is much higher
+    # (option 55 is the primary Fingerbank index).
+    dhcp_high = [r for r in dhcp_results if r.get("risk") == "high"]
+    dhcp_med  = [r for r in dhcp_results if r.get("risk") == "medium"]
+    dhcp_id   = [r for r in dhcp_results if r.get("device_name")]
+    if dhcp_high:
+        findings.append(f"DHCP: {len(dhcp_high)} camera/NVR-class device(s)")
+        bump = "high"
+    elif dhcp_med:
+        findings.append(f"DHCP: {len(dhcp_med)} IoT/embedded device(s)")
+        bump = bump or "medium"
+    elif dhcp_id:
+        findings.append(f"DHCP: {len(dhcp_id)} device(s) identified")
+    elif dhcp_map:
+        findings.append(f"DHCP: {len(dhcp_map)} fingerprint(s) seen, no FB match")
+
     block = _render_block(ips=ips, ip_results=ip_results,
                           macs=macs_to_query,
                           mac_results=mac_results,
                           bt_macs_total=len(bt_macs),
+                          dhcp_map=dhcp_map,
+                          dhcp_results=dhcp_results,
                           shodan_key=shodan_key, fb_key=fb_key)
 
     return {"findings": findings, "threat_bump": bump,
             "report_block": block,
-            "ip_results": ip_results, "mac_results": mac_results}
+            "ip_results": ip_results, "mac_results": mac_results,
+            "dhcp_results": dhcp_results}
 
 
 # ── Markdown report block ───────────────────────────────────────────────
@@ -240,6 +342,8 @@ def run(*, config: dict,
 def _render_block(*, ips: list[str], ip_results: list[dict],
                   macs: list[str], mac_results: list[dict],
                   bt_macs_total: int = 0,
+                  dhcp_map: dict[str, dict] | None = None,
+                  dhcp_results: list[dict] | None = None,
                   shodan_key: str | None, fb_key: str) -> str:
     lines: list[str] = []
     lines.append("## External Intel")
@@ -295,6 +399,32 @@ def _render_block(*, ips: list[str], ip_results: list[dict],
         lines.append("")
     else:
         lines.append("_Fingerbank disabled (no `fingerbank_api_key` in config)._")
+        lines.append("")
+
+    # --- DHCP Fingerprints (separate, hit-rate > MAC-only Fingerbank) ---
+    dhcp_map = dhcp_map or {}
+    dhcp_results = dhcp_results or []
+    if fb_key:
+        identified = [r for r in dhcp_results if r.get("device_name")]
+        lines.append(
+            f"### DHCP Fingerprints ({len(identified)} identified / "
+            f"{len(dhcp_map)} seen)")
+        if not dhcp_map:
+            lines.append("_No DHCP frames in captures "
+                         "(monitor-mode without association)._")
+        else:
+            lines.append("| MAC | Hostname | Vendor | Device | Category | Score |")
+            lines.append("|---|---|---|---|---|---|")
+            for r in dhcp_results[:50]:
+                lines.append(
+                    f"| `{r['mac']}` "
+                    f"| {(r.get('hostname') or '-')[:18]} "
+                    f"| {(r.get('vendor') or '-')[:18]} "
+                    f"| {(r.get('device_name') or '-')[:24]} "
+                    f"| {(r.get('category') or '-')[:18]} "
+                    f"| {r.get('score', '-')} |")
+            if len(dhcp_results) > 50:
+                lines.append(f"| ... | ({len(dhcp_results)-50} more) | | | | |")
         lines.append("")
 
     return "\n".join(lines)
