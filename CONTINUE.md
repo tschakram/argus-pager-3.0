@@ -15,9 +15,9 @@ WiFi-/BT-Geräte, IMSI-Catcher und Silent-SMS während man sich bewegt.
 ## Aktueller Stand (16.05.2026)
 
 - Repo: `github.com/tschakram/argus-pager-2.0`
-- **HEAD `e3eed09`** (origin/main) - Task 2 (BLE-Pattern-Whitelist) gepushed
+- **HEAD `ff3b386`** (origin/main) - Task 2 + OPSEC-Cleanup gepushed
 - Lokaler Pager-Workdir entspricht origin/main
-- cyt-Submodule HEAD `8558238` (main, gepushed - mac_ignore + Loader-Refactor)
+- cyt-Submodule HEAD `0630cd6` (main, gepushed - mac_ignore + Loader + OPSEC-Cleanup)
 - raypager-Submodule HEAD `fa3114b` (master, gepushed)
 
 ## NAECHSTE ARBEIT (Start-Reihenfolge)
@@ -43,7 +43,7 @@ tschakram/chasing-your-tail-pager). Task gestrichen.
 
 ### Task 2: BLE-Privacy-Pattern-Whitelist - DONE (16.05.)
 
-Implementiert in cyt 8558238 + argus e3eed09.
+Implementiert in cyt 0630cd6 + argus ff3b386 (post filter-repo).
 
 Was kam:
 - Neue Datei `cyt/python/mac_ignore.py` mit Klasse `MacIgnoreSet`
