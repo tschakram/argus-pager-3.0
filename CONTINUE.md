@@ -15,7 +15,7 @@ WiFi-/BT-Geräte, IMSI-Catcher und Silent-SMS während man sich bewegt.
 ## Aktueller Stand (16.05.2026)
 
 - Repo: `github.com/tschakram/argus-pager-2.0`
-- **HEAD pending push** (origin/main) - Task 3 DHCP-Fingerprint + cyt ec141b1
+- **HEAD `083977b` (origin/main) - Task 3 DHCP-Fingerprint + cyt ec141b1
 - Lokaler Pager-Workdir entspricht origin/main
 - cyt-Submodule HEAD `ec141b1` (main, gepushed - + DHCP fingerprint parser)
 - raypager-Submodule HEAD `fa3114b` (master, gepushed)
