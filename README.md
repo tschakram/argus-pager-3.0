@@ -478,6 +478,138 @@ Geplante Erweiterungen (Backlog):
 
 ---
 
+
+## Argus Hotel — DHCP-Fingerprint-Capture im fremden WiFi
+
+Wenn der Pager mit einem fremden WLAN assoziiert ist (Hotel, Cafe, Co-Working),
+wird der DHCP-Verkehr im Klartext sichtbar. Jedes Gerät das beitritt oder
+seinen IP-Lease erneuert verrät dabei mehr Identifikations-Material als
+durch reine Probe-Request-Beobachtung jemals möglich wäre.
+
+### Warum DHCP-Fingerprinting
+
+Probe-Requests sind aktuell schwer zu nutzen: moderne Phones rotieren ihre
+MAC alle paar Minuten (BLE-Privacy seit iOS 14 / Android 10), und Wi-Fi 6E
+Geräte verschicken broadcast-Probes ganz ohne SSID. Wir wissen "irgendwer
+sucht irgendwas" — aber nicht welches Gerät.
+
+DHCP-Discover- und Request-Pakete enthalten dagegen drei eindeutige Felder:
+
+| Option | Inhalt | Beispiel |
+|---|---|---|
+| 12  | Hostname              | `Tobis-iPhone`, `Galaxy-S23` |
+| 55  | Parameter Request List | `1,3,6,15,28,33,121,249` |
+| 60  | Vendor Class Identifier | `android-dhcp-12`, `dhcpcd-9.4.1` |
+
+Option 55 ist der "Akzent" der DHCP-Implementierung: iOS, Android, Windows,
+IP-Kameras, Sonos, Smart-TVs — jeder hat seine eigene Reihenfolge. Die
+Fingerbank-API (api.fingerbank.org, ~12k bekannte Fingerprints) löst das
+in Hersteller + Modell + Kategorie auf:
+
+```
+GET /api/v2/combinations/interrogate?dhcp_fingerprint=1,3,6,15,119,252&mac=...
+→ {"device": {"name": "Apple iPhone"}, "score": 76}
+```
+
+Score ≥ 30 gilt als positive ID.
+
+### Was im Argus-Report landet
+
+```
+### DHCP Fingerprints (3 identified / 5 seen)
+| MAC          | Hostname      | Vendor      | Device           | Cat   | Score |
+| aa:bb:cc:01  | iPhone-Maria  | dhcpcd      | Apple iPhone 14  | Phone | 78    |
+| cc:dd:ee:02  | DESKTOP-XYZ   | MSFT 5.0    | Windows 11       | PC    | 91    |
+| ee:ff:00:03  | -             | NEC-NIC     | Hikvision IPC-HFW| Cam   | 84    |
+```
+
+Findings: `DHCP: 1 camera/NVR-class device(s)` → Threat-Bump auf `high`.
+
+### Bedienung am Pager — kein Laptop, kein SSH
+
+Im **Reconnaissance-Menü** auf dem Pager: `argus-hotel`. Komplette Bedienung
+am Pager — kein Laptop, kein SSH. Das ist OPSEC-relevant: Wer den Pager
+fernsteuert, muss im gleichen Hotel-WLAN sein und sich mit allen Vulnerability-
+Scannern in der Broadcast-Domain auseinandersetzen. Pager allein ist hardened
+read-only Sniffer mit minimaler Angriffsfläche.
+
+#### Ablauf
+
+1. **Splash + Mode-Picker** auf dem 480×222 Display:
+   - `Scan + Connect + Capture`
+   - `Capture only (current iface)`
+   - `Status / current SSID`
+   - `Exit`
+
+2. **Scan-Modus**: `iw dev wlan0cli scan` liefert eine Liste aller APs
+   (sortiert nach Signal). Display zeigt SSID, Verschlüsselung
+   (`OPEN`/`WEP`/`WPA`/`WPA2`), RSSI in dBm, Signal-Balken.
+   - Up/Down zum Scrollen, A zum Connecten, B zurück.
+
+3. **Connect**: Bei `OPEN`-AP setzt der Pager die `wireless.wlan0cli` uci-
+   Config und macht `wifi reload`. Wartet bis zu 30s auf eine IP via DHCP.
+   - WPA-Netze: aktueller MVP unterstützt nur Open-WLAN. Für WPA-Hotels
+     muss vorher per `uci set wireless.wlan0cli.{ssid,key,encryption}`
+     ein Profil hinterlegt sein, dann `Capture only` benutzen.
+
+4. **Capture-Dauer** wählen: 1 / 3 / 5 / 10 / 20 / 30 min.
+
+5. **Live-Counter** während Capture:
+   ```
+   DHCPs:  17   Devices: 5
+   Recent: aa:bb:cc:dd:ee:01  iPhone-Maria   Apple
+           aa:bb:cc:dd:ee:02  DESKTOP-XYZ    Microsoft
+   ```
+   - `tcpdump -i wlan0cli ... "udp port 67 or udp port 68"` läuft im
+     Hintergrund, schreibt in `manual_<ts>_dhcp.pcap`.
+   - Parser-Thread re-parsed das wachsende pcap alle 2s mit
+     `cyt.python.pcap_engine.read_pcap_dhcp()`.
+   - `B` stoppt früh; sonst Auto-Stop nach Ablauf.
+
+6. **Mini-Report** zeigt Total-Counter + PCAP-Pfad. PCAP landet in
+   `/root/loot/argus/pcap/manual_<ts>_dhcp.pcap` — Auto-Glob in
+   `python/core/external_intel.py:_collect_dhcp_fingerprints` zieht
+   die Datei beim **nächsten regulären Argus-Run** automatisch ein
+   und schickt jeden Fingerprint an Fingerbank.
+
+### Was du SIEHST
+
+- Devices die **gerade joinen** oder ihre Lease erneuern während Capture läuft
+- Bei **offenem Hotel-WLAN** (Captive Portal): alle DHCPs im Broadcast-Segment
+- Bei **WPA-Hotel-WLAN mit Captive Portal**: alle DHCPs im selben Layer-2-
+  Broadcast (= häufig die ganze Etage)
+
+### Was du NICHT siehst
+
+- Devices die schon eine valide Lease haben und gerade nichts tun
+  (erst beim Renewal — typisch alle 1-24h)
+- Devices in einem anderen VLAN (Hotels mit "Client Isolation" segmentieren
+  oft pro Zimmer)
+- Devices ohne DHCP (statische IP — selten bei Consumer-Geräten)
+
+10 Minuten reichen in einem mittelgroßen Hotel meist für 5-30 verschiedene
+Devices.
+
+### Setup-Sicherheit
+
+- `payload.sh` snapshotted vor dem Hotel-Connect die aktuelle `wlan0cli`
+  uci-Config (Mudi-SSID, key, ...) nach `/tmp/argus_hotel_wlan_backup.uci`
+- Trap auf EXIT/INT/TERM stellt die alte Config wieder her — auch bei
+  Crash oder Power-Button-Abbruch. Der Pager spricht danach wieder mit
+  dem Mudi (Internet via LTE).
+
+### Manueller Capture per SSH (Alternative, ohne UI)
+
+Für Vorab-Tests vom Laptop aus (idealerweise nicht im Hotel-WLAN):
+
+```sh
+ssh pager '/root/payloads/user/reconnaissance/argus-pager-2.0/tools/hotel_dhcp_capture.sh wlan0cli 600'
+```
+
+Gleicher pcap-Output, gleicher Auto-Glob im nächsten Argus-Run.
+
+---
+
 ## IMEI-Rotation (OPSEC)
 
 Wenn ein Scan einen IMSI-Catcher oder eine andere starke Bedrohung findet, ist
