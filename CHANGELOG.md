@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.0.0-alpha0 — Rebrand + Mudi 7 Support (2026-11-01)
+
+### Rebrand
+- Fork von `argus-pager-2.0` (origin HEAD `3eaf126`), neuer Name `argus-pager-3.0`.
+- README, Hardware-Beschreibung und Versions-Strings auf 3.0 aktualisiert.
+- Submodules `cyt/` (chasing-your-tail-pager@`ec141b1`) und `raypager/` (@`fa3114b`) übernommen.
+
+### Hardware-Kompatibilität
+- Zusätzlich zum **GL-E750V2 Mudi V2** jetzt auch **GL-E5800 Mudi 7** vorgesehen.
+- Modell-spezifische AT-Command-Pfade (Quectel vs. ggf. anderer 5G-Modem-Vendor), USB-Pfade für GPS-Dongle und `gl_modem`-Varianten werden in Folge-Alphas eingebaut.
+- Auto-Detection: `/tmp/sysinfo/model` oder `cat /proc/device-tree/model` auf dem Mudi.
+
+### Ecosystem
+- Auswertung ausgelagert: [argus-analyst](https://github.com/tschakram/argus-analyst) (Desktop-App, Claude-API, GPS-Karten).
+
+### OPSEC
+- `.gitignore` + `hooks/pre-commit` aus 2.0 unverändert übernommen.
+- Pre-Commit-Hook via `git config core.hooksPath hooks` aktiviert.
+- Initial-Commit-Scan: keine echten GPS-Coords, keine API-Keys, keine echten MACs (nur Platzhalter aus `aa:bb:cc`/`ca:fe:ca:fe`/`de:ad:be:ef`/`11:22:33`-Rangen).
+
 ## 2.0.0-alpha8 — analyser report discovery + screenshot gallery (2026-04-27)
 
 ### Bugfix: "No analyser report on disk" even with submodules wired

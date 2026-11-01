@@ -1,12 +1,17 @@
-# argus-pager 2.0
+# argus-pager 3.0
 
 **Counter-Surveillance auf dem WiFi Pineapple Pager.** Ein Tool das passiv und mobil
 die Frage beantwortet: *"Wer überwacht mich gerade — und wie?"*
 
+> **Neu in 3.0** (2026-11-01)
+> - **Mudi 7 (GL-E5800)** wird zusätzlich zum Mudi V2 (GL-E750V2) unterstützt — automatische Hardware-Erkennung, modell-spezifische AT-Pfade und GPS-Backends.
+> - Auswertung der Scan-Daten via Desktop-App [**argus-analyst**](https://github.com/tschakram/argus-analyst) (Claude-API, GPS-Karten, BT-Zeitleisten).
+> - Codebasis: Fork von argus-pager 2.0 (`origin/main` HEAD `3eaf126`), Rebrand als 3.0.0-alpha0.
+
 <p align="center">
-  <img src="docs/screenshots/hardware.JPG" alt="WiFi Pineapple Pager (Argus 2.0 Splash) + GL-iNet Mudi V2 mit GNSS-USB" width="640">
+  <img src="docs/screenshots/hardware.JPG" alt="WiFi Pineapple Pager (Argus Splash) + GL-iNet Mudi (V2 oder 7) mit GNSS-USB" width="640">
   <br>
-  <em>Hardware-Stack: WiFi Pineapple Pager (links, mit Argus-Splash) + GL-iNet Mudi V2 (rechts, LTE/GPS-Bridge mit u-blox GNSS-USB-Dongle)</em>
+  <em>Hardware-Stack: WiFi Pineapple Pager (links, mit Argus-Splash) + GL-iNet Mudi — V2 (GL-E750V2) oder Mudi 7 (GL-E5800) — als LTE/GPS-Bridge mit u-blox GNSS-USB-Dongle</em>
 </p>
 
 <p align="center">
@@ -24,8 +29,8 @@ die Frage beantwortet: *"Wer überwacht mich gerade — und wie?"*
 
 ## Was kann das Ding
 
-argus-pager 2.0 vereint vier Quellen auf einem Hardware-Stack
-(Pineapple Pager + GL-E750 Mudi V2):
+argus-pager 3.0 vereint vier Quellen auf einem Hardware-Stack
+(Pineapple Pager + GL-iNet Mudi V2 **oder** Mudi 7):
 
 - **WiFi / Bluetooth** — wer pingt mich an, wer folgt mir
 - **Cellular / GSM-Layer** — bin ich gerade an einem IMSI-Catcher
