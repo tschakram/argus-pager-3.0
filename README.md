@@ -672,25 +672,36 @@ Free-Tier-Rate-Limits bei großen Drive-Sessions (>500 Devices).
 
 ## Installation
 
+> **Vollstaendige Anleitung:** [docs/INSTALL.md](docs/INSTALL.md) (Schritt-fuer-Schritt).
+> **Fehlersuche:** [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) (Discord-FAQ).
+
+TL;DR fuer Erfahrene (nicht beim ersten Mal nehmen):
+
 ```bash
-ssh pager
-cd /root/payloads/user/reconnaissance/
-git clone --recurse-submodules https://github.com/tschakram/argus-pager-2.0.git
-cd argus-pager-2.0
-git config core.hooksPath hooks                 # OPSEC-Pre-Commit aktivieren
-cp config.example.json config.json              # dann Keys eintragen
+# 1. Clone auf dem LAPTOP (nicht auf dem Pager!)
+git clone --recurse-submodules https://github.com/tschakram/argus-pager-3.0.git
+cd argus-pager-3.0
+git config core.hooksPath hooks
 
-# Falls schon vorher geklont (ohne --recurse-submodules):
-git submodule update --init --recursive
+# 2. Deploy auf den Pager
+ssh pager 'mkdir -p /root/payloads/user/reconnaissance/argus-pager-3.0'
+scp -r ./* pager:/root/payloads/user/reconnaissance/argus-pager-3.0/
+ssh pager 'find /root/payloads/user/reconnaissance/argus-pager-3.0 \
+    -type f \( -name "*.sh" -o -name "*.py" \) -exec sed -i "s/\r//" {} \;'
+ssh pager 'chmod 755 /root/payloads/user/reconnaissance/argus-pager-3.0/payload.sh'
 
-# Loot-Verzeichnisse:
-mkdir -p /root/loot/argus/{pcap,reports,logs,ignore_lists,incidents}
+# 3. Config + Loot-Dirs
+ssh pager 'cd /root/payloads/user/reconnaissance/argus-pager-3.0 && \
+           cp config.example.json config.json'                       # Keys eintragen
+ssh pager 'mkdir -p /root/loot/argus/{pcap,reports,logs,ignore_lists,incidents,screenshots}'
 
-# Mudi vorbereiten (auf Mudi):
-ssh mudi 'mkdir -p /root/loot/raypager/{cell_cache,reports}'
+# 4. Mudi (scp geht NICHT -- cat-Pipe oder tar-Pipe stattdessen)
+tar -cz raypager/ | ssh mudi 'cd /root && tar -xz'
+ssh mudi 'cd /root/raypager && cp config.example.json config.json'
+ssh mudi 'mkdir -p /root/loot/raypager/{cell_cache,reports,upload_queue}'
 ```
 
-Starten über das Pager-Payload-Menü → `reconnaissance` → `argus-pager-2.0`.
+Starten ueber das Pager-Payload-Menue → `reconnaissance` → `argus-pager-3.0`.
 
 ### config.json (Auszug)
 
