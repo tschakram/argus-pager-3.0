@@ -53,37 +53,11 @@ argus-pager 3.0 vereint vier Quellen auf einem Hardware-Stack
 
 ---
 
-## Vergleich: argus-pager (1.x) vs argus-pager 2.0
+## Vorgänger-Versionen
 
-| Aspekt | argus-pager 1.x | argus-pager 2.0 |
-|---|---|---|
-| **Bedienung** | Preset-Menü + 7 Toggles + 2 Stepper, 6 Screens bis zum Scan | **3-Button AUTO-Flow**: Splash → SCAN LOS → STOP → Report. Keine Konfiguration im Feld |
-| **Sensor-Discovery** | manuell konfiguriert | `sense.discover()` beim Start, AUTO aktiviert was da ist |
-| **UI-Framework** | DuckyScript-Builtins (`NUMBER_PICKER`, `CONFIRMATION_DIALOG`, `LOG`) | **pagerctl-native** (direkter Framebuffer, eigene Theme + Widgets) |
-| **Rounds** | feste Anzahl | **endlos** bis STOP |
-| **WiFi-Capture** | nur 2.4 GHz | **Multi-Band** 2.4/5/6 GHz, chip-caps-discovery, 54 Frequenzen |
-| **WiFi-Probe-Sammlung** | Kismet-DB | direkt aus PCAP (eigener Parser, kein Kismet-Dep) |
-| **WiFi-Probe-RSSI** | nicht erfasst | **Radiotap-RSSI** je Probe, `max/last dBm` Spalte im Report |
-| **BT-Scan** | btmgmt single-shot | eigener Subprocess + btmon-Stream, JSON-Output, OUI-Cache 365d |
-| **BT-Tracker-Erkennung** | Company-ID 117 = SmartTag (False Positives bei TVs!) | **Address-Type-aware**: Appearance 0x0200 hart, Company-ID nur in Kombination mit Random-RPA, Public-OUI = Hausgerät |
-| **BT-Privacy-Detection** | keine | Address-Type (Public/Random/RPA/Static), Subtype-Klassifikation |
-| **Cell-Tower-Check** | nur Serving Cell + OpenCelliD-Lookup | **Serving + Neighbour Cells**, Anomaly-Score H1-H8 (isolated tower, power-boost, PCID-drift, RSRP-lock-in) |
-| **IMSI-Catcher-Detection** | nur Downgrade-Heuristik (RAT=GSM) | **Multi-Layer**: Downgrade + TA-Anomaly + Cipher-Mode + Neighbour-Anomalien + Trend über Session |
-| **GPS-Sampling** | 40 s | **10 s** (~3-4x dichter, 250+ Punkte/h statt 90) |
-| **Deauth-Detection** | nicht vorhanden | **wifi_watcher.py** mit Flood-Threshold, archiviert `incidents/deauth_*.pcap` für Forensik |
-| **Pairing-DB** | nicht vorhanden | **time-aware** WiFi/BT-Pairing mit TTL-Prune (90 d / 365 d für etablierte) |
-| **External Intel** | optional WiGLE | **InternetDB + Shodan + Fingerbank + OpenCelliD** always-on bei API-Keys |
-| **Cross-Report** | nicht vorhanden | persistence-tracking über Sessions (Stalker-MACs über Tage) |
-| **Walking-Mode** | nicht vorhanden | **argus-finder** (BT) + **argus-finder-wifi** (WiFi), live-RSSI mit LED+Vibration, **Sweep-Mode** umgeht BLE-Privacy-Rotation |
-| **Active Identification** | nicht vorhanden | **argus-probe** (BT-GATT), liest Model Number / Firmware / Services, opt-in mit MAC-Randomisierung |
-| **Report-Format** | reines CYT-Markdown | **strukturiert**: Threat-Summary oben, Metrics-Tabelle, Findings, Cellular-Block, BT-Fingerprint, External Intel, Ignored-Liste collapsed |
-| **Save-Latenz** | minutenlang | **~50 s** für 5-PCAP-Sessions (Mudi-parallel, Hard-Caps) |
-| **Akku-Schutz** | none | **60 s Idle-Auto-Exit** im Report-Screen |
-| **IMEI-Rotation** | manuell via Mudi-Web-UI | **Opt-in Confirm-Modal** mit 10 s Timeout-default-NO |
-| **OPSEC-Hardening** | wenig | `.gitignore` + `hooks/pre-commit` blockt IMEI/MAC/GPS/Keys, CONTINUE.md anonymisiert, TZ permanent UTC |
-| **Recovery** | none | `tools/rerun_analyser.py` rekonstruiert Report aus PCAPs/BT-JSONs nach SIGKILL |
+argus-pager 3.0 baut auf [**argus-pager 2.0**](https://github.com/tschakram/argus-pager-2.0) auf — dort findest du den detaillierten Feature-Vergleich 1.x ↔ 2.0 und die Entwurfs-Entscheidungen zur Counter-Surveillance-first-Architektur.
 
-argus-pager 2.0 ist **counter-surveillance first** — passive Beobachtung, mobil, alleinhändig, Walking-Mode + Probe als Erweiterung. argus-pager 1.x war eher Hak5-Standard-Style mit interaktivem Menü-Flow.
+Was **neu in 3.0** ist, steht in der [Roadmap](#roadmap) weiter unten.
 
 ---
 
@@ -796,45 +770,35 @@ Argus-Run und macht Live-Tracking auf eine einzelne Ziel-MAC.
 
 ## Roadmap
 
-### v2.1.0 (Release-Kandidat, bei Tests)
-- [x] AUTO-Flow (kein Preset-Menü, kein Toggle-Screen)
-- [x] Multi-Band Hopper (2.4/5/6 GHz, chip-caps-discovery)
-- [x] WiFi-Watcher mit Probe-MAC-Tracking + Deauth-Flood-Detection
-- [x] BT-Scanner-Pipeline (eigener Process, JSON-Output, OUI-Cache 365d)
-- [x] Pairing-DB (time-aware, persistent, prune mit TTL)
-- [x] Forensic Incidents (deauth_*.pcap + .json archived)
-- [x] Threat-Summary, Metrics-Tabelle, Findings im Report
-- [x] External Intel (InternetDB/Shodan/Fingerbank) always-on
-- [x] OpenCelliD Cell-Tower-Lookup (kein Upload mehr)
-- [x] OPSEC-Härtung (.gitignore + pre-commit blocks IMEI/MAC/GPS/Keys)
-- [x] IMEI-Rotation als opt-in Confirm-Modal (Variante A, 10s timeout)
-- [x] Performance: 30 min Save-Latenz → 46s (BT-MACs nicht an Fingerbank,
-      Mudi-Calls parallel, hard caps)
-- [x] Akku-Schutz: 60s Idle-Auto-Exit im Report-Screen
-- [x] Recovery-Tool für SIGKILLed Sessions (`tools/rerun_analyser.py`)
-- [x] System-Config: TZ permanent UTC + per-run Mudi-Sync
-- [x] Live-Verifikation der Performance-Fixes durch echte Test-Runs (08.05.)
-- [x] Probe-Request-RSSI: in `pcap_engine.read_pcap_probes` extrahiert,
-      `max/last dBm` Spalte in den Report-Tabellen (seit Mai 2026)
-- [x] **Argus Finder** (BT + WiFi) — Walking-Mode RSSI-Tracker mit
-      pagerctl-native UI, Live-Stream-Sampler, LED + Vibration
+### v3.0.0-alpha (aktiv, Nov 2026)
 
-### v2.2 (Backlog)
-- [x] BLE Address-Type-Erkennung (Public/Random/RPA/Static) — fixt False
-      Positives wo Samsung TVs als SmartTags geflaggt wurden
-- [x] Appearance Code 0x0200 als harter Tracker-Marker (vor Company-ID-Check)
-- [x] **Argus Probe** (alpha7) — aktive BT-GATT Identifikation (Model
-      Number, FW-Rev, Service-Discovery), opt-in mit MAC-Randomisierung
-- Network-Probe (nmap) + mDNS/SSDP-Probe Backends — Stubs angelegt
-- BLE-Privacy-Pattern-Whitelist (`de:ad:be:ab:74:??` als ein Eintrag)
-- Identity-Address-Resolution für SmartTags (paired devices, IRK-basiert)
-- "Known-UNKNOWN towers" Whitelist in config.json (BITE Heimzellen)
-- Maltego CE Anbindung für Pairings/Suspects/GPS-Track
-- Attack-Surface-DB (SQLite auf Mudi, persistent über Sessions)
-- DHCP-Fingerprint-Extraktion aus assoziierten WiFi-Captures (Hotel)
-- cyt-Submodule-Patches als Upstream-PRs einreichen
+- [x] Fork von [argus-pager 2.0](https://github.com/tschakram/argus-pager-2.0) (origin HEAD `3eaf126`), Rebrand auf 3.0
+- [x] `docs/INSTALL.md` + `docs/TROUBLESHOOTING.md` fuer Discord-FAQ
+- [x] Mudi-IP-Migration dokumentiert (`192.168.8.1` → `172.16.0.1`)
+- [ ] **Mudi-Auto-Detection** — `/tmp/sysinfo/model` → `e750v2` vs `e5800`
+- [ ] **Mudi 7 (GL-E5800) AT-Pfade** — `cell_info.py` fuer 5G-Modem abstrahieren
+- [ ] **Mudi 7 GPS-Backend** — internes GPS vs. USB-Dongle Auto-Switch
+- [ ] **Pager-Firmware-2.0 Framework-Diff** — Builtins gegen `payload.sh` validieren, breaking changes dokumentieren
+- [ ] **argus-analyst-Anbindung** — Reports aus `/root/loot/argus/reports/` ziehen, SSH-Config auf neue Mudi-IP
+- [ ] **blue-merle fuer Mudi 7** — opkg-Paket oder Source-Build dokumentieren
+
+### v3.1 (Backlog, aus 2.x uebernommen)
+
+- BLE-Privacy-Pattern-Whitelist (`<oui>:<rest>:??` als ein Eintrag) — fixt rotierende Samsung TV-MACs
+- Identity-Address-Resolution fuer SmartTags (paired devices, IRK-basiert)
+- "Known-UNKNOWN towers" Whitelist in `config.json` (fuer MVNO-Zellen)
+- Maltego CE Anbindung fuer Pairings/Suspects/GPS-Track
+- Attack-Surface-DB (SQLite auf Mudi, persistent ueber Sessions)
 - Watch-List Trigger-Logik (Home-Zone betreten/verlassen)
 - Battery-Level Read aus `/sys/class/power_supply/`
+- Network-Probe (nmap) + mDNS/SSDP-Probe Backends vervollstaendigen
+
+### Abgeschlossen in Vorgaengern
+
+Die 2.x-Feature-Liste (AUTO-Flow, Multi-Band-Hopper, Deauth-Flood-Detector,
+Pairing-DB, External Intel, OPSEC-Haertung, Argus-Finder, Argus-Probe, …)
+ist aus 3.0 unveraendert uebernommen. Details:
+[argus-pager-2.0](https://github.com/tschakram/argus-pager-2.0).
 
 ---
 
