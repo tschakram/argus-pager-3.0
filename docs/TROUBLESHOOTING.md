@@ -230,14 +230,27 @@ git config core.hooksPath hooks
 ## IMEI-Rotation / Blue Merle
 
 ### `blue-merle: command not found`
-Nicht installiert:
+Nicht installiert. Je nach Mudi-Modell:
+
+**Mudi V2 (GL-E750V2):**
 
 ```bash
 ssh mudi 'opkg update && opkg install blue-merle'
 ```
 
-Fuer Mudi 7 (E5800) ist blue-merle **evtl. nicht als opkg-Paket**
-verfuegbar — dann aus Source bauen (SRLabs-Repo).
+**Mudi 7 (GL-E5800):** nicht im Standard-Repo. Nutze den Community-Fork
+[WSchlesner/blue-merle-v2](https://github.com/WSchlesner/blue-merle-v2):
+
+```bash
+# .ipk aus den GitHub-Releases laden, dann:
+scp -O blue-merle-v2_*.ipk root@172.16.0.1:/tmp/
+ssh mudi 'opkg install /tmp/blue-merle-v2_*.ipk'
+ssh mudi 'blue-merle check'
+```
+
+LuCI muss vor dem Install einmalig per GL.iNet-UI aktiviert werden
+(*System → Advanced Settings → Install Now*), sonst fehlt der
+`uhttpd`-Daemon und die LuCI-Seite ist nicht erreichbar.
 
 ### `rotate` haengt / Modem-Disconnect kaputt
 Vor Rotation Radio ausschalten:

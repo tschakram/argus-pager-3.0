@@ -596,12 +596,21 @@ deine IMEI im Modem potenziell schon erfasst. Eine erfasste IMEI gilt netzweit �
 der Operator kann dich über die Cell-Towers korrelieren, auch wenn du SIM oder
 Standort wechselst.
 
-argus bietet deshalb **opt-in IMEI-Rotation** über
-[Blue Merle](https://github.com/srlabs/blue-merle) auf dem Mudi V2:
+argus bietet deshalb **opt-in IMEI-Rotation** über Blue Merle auf dem Mudi.
+Je nach Modell kommen zwei verschiedene Forks zum Einsatz:
+
+| Mudi-Modell | Blue-Merle-Variante | Besonderheit |
+|---|---|---|
+| **Mudi V2** (GL-E750V2) | [srlabs/blue-merle](https://github.com/srlabs/blue-merle) | Originalfork, Single-IMEI, Hardware-Switch zum Trigger |
+| **Mudi 7** (GL-E5800) | [WSchlesner/blue-merle-v2](https://github.com/WSchlesner/blue-merle-v2) | Ground-up-Rewrite: **Dual-IMEI** (SIM1+SIM2/eSIM), 3 Modi (Random / Deterministic / Static), LuCI-UI, 2 s-Touchscreen-Longpress, Two-Stage SIM-Swap, Volatile Client-MACs, `blue-merle check` 16-point Selftest |
+
+Ablauf (identisch auf beiden Forks):
 
 1. Modem-Radio off (`AT+CFUN=4`) — alte IMEI leakt nicht weiter.
-2. Rotate — Blue Merle generiert eine neue IMEI (deterministisch aus IMSI-Hash).
+2. Rotate — Blue Merle generiert neue IMEI(s) (deterministisch aus IMSI-Hash, oder random mit Luhn-valid TAC).
 3. Modem-Radio on (`AT+CFUN=1`) — neue IMEI ist live.
+
+Install-Details: [docs/INSTALL.md § 4.4](docs/INSTALL.md#44-blue-merle-optional-fuer-imei-rotation).
 
 **OPDEC-Hinweis:** IMEI-Rotation allein hilft nicht gegen alle Korrelations-
 Vektoren. Wer auch *operative Sicherheit* (OPSEC) ernst nimmt, kombiniert:
@@ -780,7 +789,7 @@ Argus-Run und macht Live-Tracking auf eine einzelne Ziel-MAC.
 - [ ] **Mudi 7 GPS-Backend** — internes GPS vs. USB-Dongle Auto-Switch
 - [ ] **Pager-Firmware-2.0 Framework-Diff** — Builtins gegen `payload.sh` validieren, breaking changes dokumentieren
 - [ ] **argus-analyst-Anbindung** — Reports aus `/root/loot/argus/reports/` ziehen, SSH-Config auf neue Mudi-IP
-- [ ] **blue-merle fuer Mudi 7** — opkg-Paket oder Source-Build dokumentieren
+- [ ] **blue-merle fuer Mudi 7** — Fork [WSchlesner/blue-merle-v2](https://github.com/WSchlesner/blue-merle-v2) evaluieren (Ground-up-Rewrite fuer GL-E5800, Dual-IMEI, LuCI-UI, Touchscreen-Longpress, 16-point `blue-merle check`); `.ipk`-Install testen und `raypager/python/blue_merle.py` an die neue CLI anpassen
 
 ### v3.1 (Backlog, aus 2.x uebernommen)
 

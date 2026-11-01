@@ -241,14 +241,63 @@ ssh mudi 'cat /dev/ttyACM0 | head -5'
 **Nur** wenn du IMEI-Rotation wirklich brauchst — in vielen Laendern
 rechtlich **grau bis illegal**. Siehe lokales Recht.
 
+#### Mudi V2 (GL-E750V2) — SRLabs Blue Merle
+
 ```bash
 ssh mudi 'opkg update && opkg install blue-merle'
 # Nach Reboot pruefen:
 ssh mudi 'blue-merle status'
 ```
 
-Fuer Mudi 7 (E5800) ist blue-merle ggf. **nicht vorgebaut** — dann
-Build-Anleitung aus `https://github.com/srlabs/blue-merle` folgen.
+Quelle: [srlabs/blue-merle](https://github.com/srlabs/blue-merle) — der
+originale Fork fuer den Mudi V2 mit USB-Modem.
+
+#### Mudi 7 (GL-E5800) — Blue Merle v2 (Community-Fork)
+
+Fuer den Mudi 7 ist Blue Merle **komplett neu geschrieben**, weil der
+Mudi 7 einen Quectel RG650V-NA mit integriertem MHI-Modem hat (statt USB
+beim V2) und eine andere `gl_modem`-API. Fork:
+[WSchlesner/blue-merle-v2](https://github.com/WSchlesner/blue-merle-v2)
+(GPL-2.0, aktiv gepflegt, Firmware-Target GL.iNet 4.8.3/4.8.5).
+
+Neu gegenueber V1:
+- **Dual-IMEI** (SIM 1 + SIM 2/eSIM, je `AT+EGMR` per Slot)
+- Drei Modi: **Random** (Luhn-valid + TAC-matched), **Deterministic**
+  (stabil per IMSI-Hash), **Static** (user-supplied IMEI)
+- **Consistent wireless identity** — alle BSSIDs mit einem OUI,
+  SSID-Marke passend (kein impossible vendor mix)
+- **Two-stage SIM swap** — throwaway IMEIs vor Poweroff, finale IMEIs
+  beim naechsten Boot vor erster Modem-Attach
+- **Volatile client-MACs** (`tmpfs` ueber GL.iNet Client-MAC-DB —
+  Device-History landet nicht im Flash)
+- **LuCI-UI** unter *Services → Blue Merle* (nicht nur CLI)
+- **Touchscreen-Trigger** — 2 s Longpress auf die Uhr startet SIM-Swap
+- `blue-merle check` — 16-point self-test
+
+Install:
+
+```bash
+# LuCI aktivieren (einmalig im GL.iNet-Web-UI):
+#   System → Advanced Settings → Install Now
+#   -> dann unter http://<mudi-ip>:8080 erreichbar
+
+# Release-Paket von GitHub holen (auf Laptop) und auf Mudi uebertragen:
+# https://github.com/WSchlesner/blue-merle-v2/releases
+scp -O blue-merle-v2_1.0.0-Script-Local.ipk root@172.16.0.1:/tmp/
+ssh mudi 'opkg install /tmp/blue-merle-v2_1.0.0-Script-Local.ipk'
+
+# Verifizieren + erste Rotation:
+ssh mudi 'blue-merle check && blue-merle status'
+ssh mudi 'blue-merle rotate'
+```
+
+> Firmware-Upgrades auf dem Mudi 7 entfernen das Paket **ohne**
+> Uninstall-Hooks → nach jedem Firmware-Upgrade neu installieren.
+> `/etc/config/blue-merle` bleibt erhalten, Factory-State ist safe.
+
+argus-pager 3.0 ruft `blue-merle rotate` identisch zum V1 auf — die
+CLI ist absichtlich kompatibel. Dual-Slot-Flags (`--slot1=random
+--slot2=deterministic`) sind optional.
 
 ### 4.5 Loot-Verzeichnisse auf Mudi
 
